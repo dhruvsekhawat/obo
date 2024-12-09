@@ -80,8 +80,8 @@ class CustomUser(AbstractUser):
 
 class LoanOfficerProfile(models.Model):
     user = models.OneToOneField(
-        CustomUser, 
-        on_delete=models.CASCADE, 
+        'CustomUser',
+        on_delete=models.CASCADE,
         related_name='loan_officer_profile'
     )
     nmls_id = models.CharField(
@@ -161,6 +161,20 @@ class LoanOfficerProfile(models.Model):
         help_text="Percentage of won loans vs total attempts"
     )
 
+    # Performance metrics
+    active_bids_count = models.IntegerField(default=0)
+    total_loans_won = models.IntegerField(default=0)
+    success_rate = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0
+    )
+    total_value = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0
+    )
+
     class Meta:
         verbose_name = 'Loan Officer Profile'
         verbose_name_plural = 'Loan Officer Profiles'
@@ -210,29 +224,32 @@ class LoanOfficerProfile(models.Model):
 
     def update_performance_metrics(self):
         """Update historical performance metrics"""
-        from django.db.models import Avg, Count
+        from django.db.models import Count, Sum
+        from bidding.models import Bid
+        from decimal import Decimal
         
-        # Get all won loans
-        won_loans = self.bids.filter(status='ACCEPTED')
-        guaranteed_leads = self.guaranteed_leads.all()
+        # Get all bids and won loans
+        all_bids = self.bids.all()
+        active_bids = all_bids.filter(status='ACTIVE')
+        won_loans = all_bids.filter(status='ACCEPTED')
+        completed_bids = all_bids.exclude(status='ACTIVE')
         
         # Update counts
+        self.active_bids_count = active_bids.count()
         self.total_loans_won = won_loans.count()
-        self.total_guaranteed_leads = guaranteed_leads.count()
-        self.total_competitive_wins = won_loans.exclude(
-            loan__in=guaranteed_leads.values_list('loan', flat=True)
-        ).count()
         
-        # Calculate average loan amount
-        avg_amount = won_loans.aggregate(
-            avg_amount=Avg('loan__loan_amount')
-        )['avg_amount']
-        self.average_loan_amount = avg_amount if avg_amount else 0
+        # Calculate total value of won loans
+        total_value = won_loans.aggregate(
+            total=Sum('loan__loan_amount')
+        )['total'] or Decimal('0')
+        self.total_value = total_value
         
-        # Calculate success rate
-        total_attempts = self.bids.count() + self.total_guaranteed_leads
-        if total_attempts > 0:
-            self.success_rate = (self.total_loans_won / total_attempts) * 100
+        # Calculate success rate (won loans / total completed bids)
+        completed_count = completed_bids.count()
+        if completed_count > 0:
+            self.success_rate = Decimal(self.total_loans_won) / Decimal(completed_count) * 100
+        else:
+            self.success_rate = Decimal('0')
         
         self.save()
 
@@ -282,6 +299,34 @@ class LoanOfficerProfile(models.Model):
         self.profile_completed = all(required_fields)
         self.save(update_fields=['profile_completed'] if self.pk else None)
         return self.profile_completed
+
+    def get_recent_activity(self):
+        """Get recent bid activity"""
+        from bidding.models import Bid
+        return Bid.objects.filter(
+            loan_officer=self
+        ).select_related('loan').order_by(
+            '-created_at'
+        )[:5]
+
+    def to_dict(self):
+        """Convert profile to dictionary with recent activity"""
+        recent_bids = [{
+            'id': bid.id,
+            'loan_id': bid.loan.id,
+            'bid_apr': float(bid.bid_apr),
+            'created_at': bid.created_at.isoformat(),
+            'status': bid.status
+        } for bid in self.get_recent_activity()]
+
+        return {
+            'id': self.id,
+            'active_bids_count': self.active_bids_count,
+            'total_loans_won': self.total_loans_won,
+            'success_rate': float(self.success_rate),
+            'total_value': float(self.total_value),
+            'recent_bids': recent_bids
+        }
 
 class LoanOfficerPreferences(models.Model):
     loan_officer = models.OneToOneField(

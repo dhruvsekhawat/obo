@@ -36,4 +36,10 @@ class NotificationViewSet(viewsets.ModelViewSet):
     def mark_all_read(self, request):
         """Mark all notifications as read"""
         self.get_queryset().update(is_read=True)
+        return Response({'status': 'success'})
+
+    @action(detail=False, methods=['post'])
+    def clear(self, request):
+        """Clear all notifications for the current user"""
+        self.get_queryset().delete()
         return Response({'status': 'success'}) 

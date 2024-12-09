@@ -29,6 +29,38 @@ class RegisterView(APIView):
             try:
                 user = serializer.save()
                 
+                # Create loan officer profile if role is LOAN_OFFICER
+                if user.role == 'LOAN_OFFICER':
+                    loan_officer_data = request.data.get('loan_officer_profile', {})
+                    # Generate a temporary NMLS ID if not provided
+                    if not loan_officer_data.get('nmls_id'):
+                        loan_officer_data['nmls_id'] = f"R{user.id}"
+                    
+                    # Create loan officer profile
+                    loan_officer = LoanOfficerProfile.objects.create(
+                        user=user,
+                        nmls_id=loan_officer_data.get('nmls_id'),
+                        company_name=loan_officer_data.get('company_name'),
+                        years_of_experience=loan_officer_data.get('years_of_experience', 0),
+                        is_active=True,
+                        profile_completed=True
+                    )
+                    
+                    # Create default preferences
+                    LoanOfficerPreferences.objects.create(
+                        loan_officer=loan_officer,
+                        min_loan_amount=100000,
+                        max_loan_amount=1000000,
+                        min_fico_score=620,
+                        max_fico_score=850,
+                        max_apr_threshold=7.00,
+                        notify_guaranteed_loans=True,
+                        notify_competitive_loans=True,
+                        notify_bid_updates=True,
+                        communicate_via_email=True,
+                        communicate_via_dashboard=True
+                    )
+
                 # Generate tokens for immediate login
                 refresh = RefreshToken.for_user(user)
                 access_token = str(refresh.access_token)
@@ -121,13 +153,18 @@ class GoogleAuthView(APIView):
                 if not user.google_id:
                     user.google_id = google_id
                     user.save()
+                
+                # Ensure user is a loan officer
+                if user.role != 'LOAN_OFFICER':
+                    user.role = 'LOAN_OFFICER'
+                    user.save()
             except User.DoesNotExist:
                 # Create new user
                 user = User.objects.create_user(
                     email=email,
                     first_name=idinfo.get('given_name', ''),
                     last_name=idinfo.get('family_name', ''),
-                    role='LOAN_OFFICER',
+                    role='LOAN_OFFICER',  # Always set as loan officer
                     google_id=google_id,
                     is_verified=True
                 )
@@ -264,30 +301,31 @@ class LoanOfficerProfileView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        if not hasattr(request.user, 'loan_officer_profile'):
-            return Response({
-                "error": "Loan officer profile not found"
-            }, status=status.HTTP_404_NOT_FOUND)
-
-        profile = request.user.loan_officer_profile
-        serializer = LoanOfficerProfileSerializer(profile)
-        return Response(serializer.data)
+        try:
+            loan_officer = request.user.loan_officer_profile
+            loan_officer.update_performance_metrics()  # Update metrics before returning
+            return Response(loan_officer.to_dict())
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
     def put(self, request):
+        """Update loan officer profile"""
         if not hasattr(request.user, 'loan_officer_profile'):
             return Response({
-                "error": "Loan officer profile not found"
-            }, status=status.HTTP_404_NOT_FOUND)
+                "error": "Only loan officers can update profile"
+            }, status=status.HTTP_403_FORBIDDEN)
 
-        profile = request.user.loan_officer_profile
-        serializer = LoanOfficerProfileUpdateSerializer(profile, data=request.data)
+        loan_officer = request.user.loan_officer_profile
+        serializer = LoanOfficerProfileUpdateSerializer(loan_officer, data=request.data, partial=True)
         
         if serializer.is_valid():
             serializer.save()
-            return Response({
-                'success': True,
-                'message': 'Profile updated successfully',
-                'profile': LoanOfficerProfileSerializer(profile).data,
-                'profile_completed': profile.profile_completed
-            })
+            
+            # Update metrics after profile update
+            loan_officer.update_performance_metrics()
+            
+            return Response(LoanOfficerProfileSerializer(loan_officer).data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

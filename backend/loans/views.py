@@ -8,6 +8,7 @@ from django.utils import timezone
 from datetime import timedelta
 import logging
 import random
+from decimal import Decimal
 
 from .models import Loan, GuaranteedLeadAllocation, GuaranteedLeadAssignment
 from .serializers import (
@@ -178,6 +179,8 @@ class LoanViewSet(viewsets.ModelViewSet):
 
         # Try to assign the loan
         if loan.assign_to_guaranteed_pool(loan_officer):
+            # Update performance metrics
+            loan_officer.update_performance_metrics()
             serializer = self.get_serializer(loan)
             return Response(serializer.data)
         else:
@@ -188,81 +191,92 @@ class LoanViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def place_bid(self, request, pk=None):
-        """
-        Place a bid on a competitive loan
-        """
-        if not hasattr(request.user, 'loan_officer_profile'):
-            return Response(
-                {"error": "Only loan officers can place bids"},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        if not request.user.loan_officer_profile.is_active:
-            return Response(
-                {"error": "Your loan officer profile is not active"},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        loan = self.get_object()
-        loan_officer = request.user.loan_officer_profile
-        bid_apr = request.data.get('bid_apr')
-
-        if not bid_apr:
-            return Response(
-                {"error": "Bid APR is required"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
+        """Place a bid on a loan"""
         try:
-            bid_apr = float(bid_apr)
-        except ValueError:
-            return Response(
-                {"error": "Invalid APR value"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Validate bid
-        if loan.lowest_bid_apr and bid_apr >= float(loan.lowest_bid_apr):
-            return Response(
-                {"error": "Bid must be lower than current lowest APR"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Get current active bids to notify outbid users
-        current_active_bids = Bid.objects.filter(
-            loan=loan,
-            status='ACTIVE'
-        ).select_related('loan_officer__user')
-
-        # Create bid
-        bid = Bid.objects.create(
-            loan=loan,
-            loan_officer=loan_officer,
-            bid_apr=bid_apr,
-            status='ACTIVE'
-        )
-
-        # Update loan
-        loan.lowest_bid_apr = bid_apr
-        loan.current_leader = loan_officer
-        loan.current_bid_count += 1
-        loan.save()
-
-        # Create notifications for outbid users
-        for outbid in current_active_bids:
-            if outbid.loan_officer != loan_officer:  # Don't notify the bidder
-                Notification.create_outbid_notification(
-                    user=outbid.loan_officer.user,
-                    loan=loan,
-                    new_bid=bid
+            loan = self.get_object()
+            loan_officer = request.user.loan_officer_profile
+            
+            # Validate bid_apr exists
+            if 'bid_apr' not in request.data:
+                return Response(
+                    {'error': 'bid_apr is required'},
+                    status=status.HTTP_400_BAD_REQUEST
                 )
-                # Update outbid status
-                outbid.status = 'OUTBID'
-                outbid.is_lowest = False
-                outbid.save()
 
-        serializer = self.get_serializer(loan)
-        return Response(serializer.data)
+            try:
+                bid_apr = Decimal(str(request.data.get('bid_apr')))
+            except (TypeError, ValueError):
+                return Response(
+                    {'error': 'Invalid bid_apr value'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Validate bid
+            if loan.status != 'AVAILABLE':
+                return Response(
+                    {'error': 'This loan is not available for bidding'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            if loan.lowest_bid_apr and bid_apr >= Decimal(str(loan.lowest_bid_apr)):
+                return Response(
+                    {'error': 'Bid must be lower than current lowest APR'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            if bid_apr >= Decimal(str(loan.original_apr)):
+                return Response(
+                    {'error': 'Bid must be lower than original APR'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Get current active bids to notify outbid users
+            current_active_bids = Bid.objects.filter(
+                loan=loan,
+                status='ACTIVE'
+            ).select_related('loan_officer__user')
+
+            # Create bid
+            bid = Bid.objects.create(
+                loan=loan,
+                loan_officer=loan_officer,
+                bid_apr=bid_apr,
+                status='ACTIVE'
+            )
+
+            # Update loan
+            loan.lowest_bid_apr = bid_apr
+            loan.current_leader = loan_officer
+            loan.current_bid_count += 1
+            loan.save()
+
+            # Create notifications for outbid users
+            for outbid in current_active_bids:
+                if outbid.loan_officer != loan_officer:  # Don't notify the bidder
+                    Notification.create_outbid_notification(
+                        user=outbid.loan_officer.user,
+                        loan=loan,
+                        new_bid=bid
+                    )
+                    # Update outbid status
+                    outbid.status = 'OUTBID'
+                    outbid.is_lowest = False
+                    outbid.save()
+
+                    # Update outbid loan officer's metrics
+                    outbid.loan_officer.update_performance_metrics()
+
+            # Update current bidder's metrics
+            loan_officer.update_performance_metrics()
+            
+            serializer = self.get_serializer(loan)
+            return Response(serializer.data)
+            
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
     @action(detail=False, methods=['get'])
     def history(self, request):
