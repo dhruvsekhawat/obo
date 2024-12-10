@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 import { authService } from '@/services/auth';
-import type { IconType } from '@heroicons/react/24/outline';
+import type { SVGProps } from 'react';
 import {
   ChartBarIcon,
   CheckCircleIcon,
@@ -17,7 +17,12 @@ import {
   Cog6ToothIcon,
   ArrowLeftOnRectangleIcon,
 } from '@heroicons/react/24/outline';
-import { NotificationBell } from '@/components/notifications/NotificationBell';
+import dynamic from 'next/dynamic';
+
+const NotificationBell = dynamic(
+  () => import('@/components/notifications/NotificationBell'),
+  { ssr: false }
+);
 
 interface DashboardStats {
   active_bids: number;
@@ -35,7 +40,7 @@ interface DashboardStats {
 interface StatItem {
   name: string;
   value: string | number;
-  icon: React.ForwardRefExoticComponent<React.SVGProps<SVGSVGElement>>;
+  icon: React.ComponentType<SVGProps<SVGSVGElement>>;
   color: string;
 }
 
