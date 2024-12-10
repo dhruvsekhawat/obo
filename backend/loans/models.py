@@ -2,6 +2,11 @@ from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from decimal import Decimal
 from core.constants import LOAN_STATUS_CHOICES, LEAD_TYPE_CHOICES
+from django.db.models.signals import post_save, pre_save
+from django.dispatch import receiver
+from notifications.models import Notification
+from django.conf import settings
+from django.apps import apps
 
 class Borrower(models.Model):
     first_name = models.CharField(max_length=100)
@@ -42,7 +47,7 @@ class Borrower(models.Model):
 
 class Loan(models.Model):
     borrower = models.ForeignKey(
-        Borrower,
+        'Borrower',
         on_delete=models.CASCADE,
         related_name='loans'
     )
@@ -252,6 +257,46 @@ class Loan(models.Model):
     def get_current_best_offer(self):
         """Get the current best offer for this loan"""
         return self.bids.filter(status='ACTIVE').order_by('bid_apr').first()
+
+    def save(self, *args, **kwargs):
+        # Store old status for status change notification
+        if self.pk:
+            old_instance = Loan.objects.get(pk=self.pk)
+            self._old_status = old_instance.status
+        else:
+            self._old_status = None
+        super().save(*args, **kwargs)
+
+@receiver(post_save, sender=Loan)
+def loan_post_save(sender, instance, created, **kwargs):
+    """Handle notifications after loan save"""
+    # Get the model class only when needed
+    LoanOfficerProfile = apps.get_model('authentication', 'LoanOfficerProfile')
+    
+    if created:
+        # Notify all active loan officers about new loan
+        loan_officers = LoanOfficerProfile.objects.filter(is_active=True)
+        for officer in loan_officers:
+            Notification.create_new_loan_notification(user=officer.user, loan=instance)
+    
+    # Status change notification
+    if not created and hasattr(instance, '_old_status') and instance._old_status != instance.status:
+        if instance.current_leader:
+            Notification.create_loan_status_notification(
+                user=instance.current_leader.user,
+                loan=instance,
+                old_status=instance._old_status,
+                new_status=instance.status
+            )
+
+@receiver(post_save, sender='loans.GuaranteedLeadAssignment')
+def guaranteed_assignment_post_save(sender, instance, created, **kwargs):
+    """Handle notifications after guaranteed lead assignment"""
+    if created:
+        Notification.create_loan_assignment_notification(
+            user=instance.loan_officer.user,
+            loan=instance.loan
+        )
 
 class GuaranteedLeadAllocation(models.Model):
     loan_officer = models.OneToOneField(
