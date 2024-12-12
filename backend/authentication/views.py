@@ -319,7 +319,25 @@ class LoanOfficerProfileView(APIView):
             }, status=status.HTTP_403_FORBIDDEN)
 
         loan_officer = request.user.loan_officer_profile
-        serializer = LoanOfficerProfileUpdateSerializer(loan_officer, data=request.data, partial=True)
+        
+        # Check if this is a new user completing their profile
+        is_new_user = not loan_officer.profile_completed
+        
+        # For existing users, only allow updating specific fields
+        if not is_new_user:
+            allowed_fields = ['phone_number', 'company_name', 'years_of_experience']
+            data = {k: v for k, v in request.data.items() if k in allowed_fields}
+            
+            # Check if trying to update restricted fields
+            restricted_fields = set(request.data.keys()) - set(allowed_fields)
+            if restricted_fields:
+                return Response({
+                    "error": f"Cannot update restricted fields: {', '.join(restricted_fields)}"
+                }, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            data = request.data
+
+        serializer = LoanOfficerProfileUpdateSerializer(loan_officer, data=data, partial=True)
         
         if serializer.is_valid():
             serializer.save()

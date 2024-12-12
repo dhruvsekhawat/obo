@@ -26,17 +26,33 @@ export const authService = {
       throw new Error('No authentication token found');
     }
 
-    const response = await axios.put(
-      `${API_URL}/auth/loan_officer/preferences/`,
-      preferences,
-      {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+    try {
+      const response = await axios.put(
+        `${API_URL}/auth/loan_officer/preferences/`,
+        preferences,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
         }
+      );
+
+      // Get current user data and update it with new preferences
+      const currentUser = this.getUser();
+      if (currentUser) {
+        const updatedUser = {
+          ...currentUser,
+          preferences: response.data
+        };
+        this.setUser(updatedUser);
       }
-    );
-    return response.data;
+
+      return response.data;
+    } catch (error: any) {
+      console.error('Preferences update error:', error.response?.data || error.message);
+      throw error;
+    }
   },
 
   async updateProfile(profileData: any) {
@@ -45,17 +61,41 @@ export const authService = {
       throw new Error('No authentication token found');
     }
 
-    const response = await axios.put(
-      `${API_URL}/auth/loan_officer/profile/`,
-      profileData,
-      {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+    try {
+      // First, update the loan officer profile
+      const response = await axios.put(
+        `${API_URL}/auth/loan_officer/profile/`,
+        profileData,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
         }
+      );
+
+      // Get current user data
+      const currentUser = this.getUser();
+      if (currentUser) {
+        // Update the user data with the new profile information
+        const updatedUser = {
+          ...currentUser,
+          loan_officer_profile: {
+            ...currentUser.loan_officer_profile,
+            phone_number: profileData.phone_number,
+            company_name: profileData.company_name,
+            years_of_experience: profileData.years_of_experience,
+            ...response.data
+          }
+        };
+        this.setUser(updatedUser);
       }
-    );
-    return response.data;
+
+      return response.data;
+    } catch (error: any) {
+      console.error('Profile update error:', error.response?.data || error.message);
+      throw error;
+    }
   },
 
   async logout() {

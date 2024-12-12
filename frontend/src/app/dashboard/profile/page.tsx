@@ -19,7 +19,8 @@ import {
   ChartBarIcon,
   InformationCircleIcon,
   ChevronDownIcon,
-  ChevronUpIcon
+  ChevronUpIcon,
+  ArrowLeftIcon
 } from '@heroicons/react/24/outline';
 import Slider from 'rc-slider';
 import 'rc-slider/assets/index.css';
@@ -157,6 +158,8 @@ export default function ProfilePage() {
     years_of_experience: user?.loan_officer_profile?.years_of_experience || 0
   });
 
+  const [isNewUser, setIsNewUser] = useState(false);
+
   useEffect(() => {
     const userData = authService.getUser();
     console.log('User Data:', userData);
@@ -173,23 +176,25 @@ export default function ProfilePage() {
     }
 
     setUser(userData);
-    if (userData.preferences) {
-      const updatedPreferences = {
-        ...preferences,
-        ...userData.preferences,
-        loan_types: {
-          conventional: true,
-          fha: true,
-          va: true,
-          jumbo: true,
-          priority: 'conventional',
-          ...(userData.preferences?.loan_types || {})
-        }
-      };
-      setPreferences(updatedPreferences);
+    
+    // Check for new user flow and URL parameters
+    const searchParams = new URLSearchParams(window.location.search);
+    const isNew = searchParams.get('new') === 'true';
+    const tab = searchParams.get('tab');
+    setIsNewUser(isNew);
+    
+    if (tab === 'profile') {
+      setActiveTab('profile');
     }
     
-    // Set profile details
+    if (isNew && !userData.loan_officer_profile?.profile_completed) {
+      toast('Please complete your profile information to continue', {
+        icon: '🔔',
+        duration: 5000
+      });
+    }
+    
+    // Set profile details from user data
     setProfileDetails({
       first_name: userData.first_name || '',
       last_name: userData.last_name || '',
@@ -199,20 +204,36 @@ export default function ProfilePage() {
       years_of_experience: userData.loan_officer_profile?.years_of_experience || 0
     });
 
-    // Check for new user flow
-    const searchParams = new URLSearchParams(window.location.search);
-    const tab = searchParams.get('tab');
-    const isNew = searchParams.get('new');
-    
-    if (tab === 'profile') {
-      setActiveTab('profile');
-    }
-    
-    if (isNew === 'true' && !userData.loan_officer_profile?.profile_completed) {
-      toast('Please complete your profile information to continue', {
-        icon: '🔔',
-        duration: 5000
-      });
+    // Set preferences from user data
+    if (userData.preferences) {
+      const updatedPreferences = {
+        ...preferences,
+        loan_types: {
+          conventional: userData.preferences.loan_types?.conventional ?? true,
+          fha: userData.preferences.loan_types?.fha ?? true,
+          va: userData.preferences.loan_types?.va ?? true,
+          jumbo: userData.preferences.loan_types?.jumbo ?? true,
+          priority: userData.preferences.loan_types?.priority || 'conventional'
+        },
+        regions: userData.preferences.regions || [],
+        open_to_all_regions: userData.preferences.open_to_all_regions ?? true,
+        min_loan_amount: userData.preferences.min_loan_amount || 100000,
+        max_loan_amount: userData.preferences.max_loan_amount || 1000000,
+        min_fico_score: userData.preferences.min_fico_score || 620,
+        max_fico_score: userData.preferences.max_fico_score || 850,
+        max_apr_threshold: userData.preferences.max_apr_threshold || 7.00,
+        notification_preferences: {
+          guaranteed_loans: userData.preferences.notification_preferences?.guaranteed_loans ?? true,
+          competitive_loans: userData.preferences.notification_preferences?.competitive_loans ?? true,
+          bid_updates: userData.preferences.notification_preferences?.bid_updates ?? true
+        },
+        communication_preferences: {
+          email: userData.preferences.communication_preferences?.email ?? true,
+          sms: userData.preferences.communication_preferences?.sms ?? true,
+          dashboard: userData.preferences.communication_preferences?.dashboard ?? true
+        }
+      };
+      setPreferences(updatedPreferences);
     }
 
     setIsLoading(false);
@@ -230,7 +251,17 @@ export default function ProfilePage() {
       }
 
       setIsSaving(true);
-      const response = await authService.updatePreferences(preferences);
+      const response = await authService.updatePreferences({
+        ...preferences,
+        loan_types: {
+          ...preferences.loan_types,
+          conventional: preferences.loan_types.conventional,
+          fha: preferences.loan_types.fha,
+          va: preferences.loan_types.va,
+          jumbo: preferences.loan_types.jumbo,
+          priority: preferences.loan_types.priority
+        }
+      });
       
       if (currentUser) {
         const updatedUser = {
@@ -238,6 +269,7 @@ export default function ProfilePage() {
           preferences: response
         };
         authService.setUser(updatedUser);
+        setPreferences(response); // Update local state with response data
       }
       
       toast.success('Preferences saved successfully');
@@ -257,45 +289,47 @@ export default function ProfilePage() {
   const handleProfileUpdate = async () => {
     try {
       // Validate required fields
-      if (!profileDetails.first_name || !profileDetails.last_name || 
-          !profileDetails.phone_number || !profileDetails.company_name || 
-          !profileDetails.nmls_id || !profileDetails.years_of_experience) {
+      if (!profileDetails.phone_number || !profileDetails.company_name || 
+          !profileDetails.years_of_experience) {
         toast.error('Please fill in all required fields');
         return;
       }
 
       setIsSaving(true);
-      const response = await authService.updateProfile(profileDetails);
       
-      if (response.success) {
-        const currentUser = authService.getUser();
-        if (currentUser) {
-          const updatedUser = {
-            ...currentUser,
-            first_name: profileDetails.first_name,
-            last_name: profileDetails.last_name,
-            loan_officer_profile: {
-              ...currentUser.loan_officer_profile,
-              phone_number: profileDetails.phone_number,
-              company_name: profileDetails.company_name,
-              nmls_id: profileDetails.nmls_id,
-              years_of_experience: profileDetails.years_of_experience,
-              profile_completed: true
-            }
-          };
-          authService.setUser(updatedUser);
-        }
-        toast.success('Profile updated successfully');
-        
-        // If this was a new user completing their profile, redirect to dashboard
-        const searchParams = new URLSearchParams(window.location.search);
-        if (searchParams.get('new') === 'true') {
-          router.push('/dashboard');
-        }
+      // For existing users, only allow updating specific fields
+      const updateData = {
+        phone_number: profileDetails.phone_number,
+        company_name: profileDetails.company_name,
+        years_of_experience: profileDetails.years_of_experience
+      };
+
+      const response = await authService.updateProfile(updateData);
+      
+      // Update the local user state with the new profile data
+      const currentUser = authService.getUser();
+      if (currentUser) {
+        const updatedUser = {
+          ...currentUser,
+          loan_officer_profile: {
+            ...currentUser.loan_officer_profile,
+            ...response,
+            profile_completed: true
+          }
+        };
+        authService.setUser(updatedUser);
+        setUser(updatedUser);
+      }
+      
+      toast.success('Profile updated successfully');
+      
+      // If this was a new user completing their profile, redirect to dashboard
+      if (isNewUser) {
+        router.push('/dashboard');
       }
     } catch (error: any) {
       console.error('Failed to update profile:', error);
-      toast.error(error.response?.data?.message || 'Failed to update profile');
+      toast.error(error.response?.data?.error || 'Failed to update profile');
     } finally {
       setIsSaving(false);
     }
@@ -772,10 +806,21 @@ export default function ProfilePage() {
       <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="px-4 sm:px-0 mb-8">
-          <h2 className="text-2xl font-bold text-gray-900">Profile Settings</h2>
-          <p className="mt-1 text-sm text-gray-500">
-            Manage your preferences and account settings.
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">Profile Settings</h2>
+              <p className="mt-1 text-sm text-gray-500">
+                Manage your preferences and account settings.
+              </p>
+            </div>
+            <button
+              onClick={() => router.push('/dashboard')}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              <ArrowLeftIcon className="h-5 w-5 mr-2" />
+              Back to Dashboard
+            </button>
+          </div>
         </div>
 
         {/* Tabs */}
@@ -836,6 +881,7 @@ export default function ProfilePage() {
                     })}
                     className="mt-1"
                     required
+                    disabled={!isNewUser}
                   />
                 </div>
                 <div>
@@ -851,6 +897,7 @@ export default function ProfilePage() {
                     })}
                     className="mt-1"
                     required
+                    disabled={!isNewUser}
                   />
                 </div>
                 <div>
@@ -896,6 +943,7 @@ export default function ProfilePage() {
                     })}
                     className="mt-1"
                     required
+                    disabled={!isNewUser}
                   />
                 </div>
                 <div>

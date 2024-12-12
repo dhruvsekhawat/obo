@@ -6,6 +6,17 @@ import { toast } from 'react-hot-toast';
 import { Button } from '@/components/shared/Button';
 import { authService } from '@/services/auth';
 
+interface GoogleResponse {
+  credential: string;
+}
+
+interface AuthResponse {
+  success: boolean;
+  access: string;
+  user: any;
+  message?: string;
+}
+
 declare global {
   interface Window {
     google: {
@@ -24,18 +35,18 @@ declare global {
 export function GoogleAuth() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
-  const [isScriptLoaded, setIsScriptLoaded] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
   const googleButtonRef = useRef<HTMLDivElement>(null);
   const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
-  const handleGoogleResponse = useCallback(async (response: any) => {
+  const handleGoogleResponse = useCallback(async (response: GoogleResponse) => {
     try {
       setIsLoading(true);
       const result = await authService.googleAuth(response.credential);
 
       if (result.success) {
         authService.setToken(result.access);
-        authService.setUser(JSON.stringify(result.user));
+        authService.setUser(result.user);
         toast.success('Successfully signed in with Google!');
 
         if (result.user.role !== 'LOAN_OFFICER') {
@@ -64,64 +75,106 @@ export function GoogleAuth() {
   }, [router]);
 
   useEffect(() => {
-    if (!clientId || !googleButtonRef.current) return;
+    if (!clientId || !googleButtonRef.current || isInitialized) return;
 
-    const existingScript = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
-    if (existingScript) {
-      if (isScriptLoaded) return;
-      existingScript.remove();
-      setIsScriptLoaded(false);
-    }
+    const initializeGoogleSignIn = () => {
+      if (!window.google?.accounts?.id) {
+        console.error('Google Sign-In SDK not loaded');
+        return;
+      }
 
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    script.onload = () => {
-      setIsScriptLoaded(true);
-      window.google.accounts.id.initialize({
-        client_id: clientId,
-        callback: handleGoogleResponse,
-      });
+      try {
+        window.google.accounts.id.initialize({
+          client_id: clientId,
+          callback: handleGoogleResponse,
+        });
 
-      window.google.accounts.id.renderButton(googleButtonRef.current!, {
-        theme: 'outline',
-        size: 'large',
-        width: googleButtonRef.current!.offsetWidth,
-        text: 'continue_with',
-      });
+        window.google.accounts.id.renderButton(googleButtonRef.current!, {
+          type: 'standard',
+          theme: 'outline',
+          size: 'large',
+          text: 'continue_with',
+          shape: 'rectangular',
+          width: googleButtonRef.current!.offsetWidth,
+          logo_alignment: 'center',
+        });
+
+        setIsInitialized(true);
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Error initializing Google Sign-In:', error);
+        setIsLoading(false);
+      }
     };
 
-    document.body.appendChild(script);
+    // Check if the script is already loaded
+    if (window.google?.accounts?.id) {
+      initializeGoogleSignIn();
+    } else {
+      // Load the script if not already loaded
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.defer = true;
+      script.onload = initializeGoogleSignIn;
+      script.onerror = () => {
+        console.error('Failed to load Google Sign-In SDK');
+        setIsLoading(false);
+      };
+      document.body.appendChild(script);
+    }
 
     return () => {
       try {
         if (window.google?.accounts?.id) {
           window.google.accounts.id.cancel();
         }
-        const script = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
-        if (script) script.remove();
       } catch (error) {
         console.error('Error during cleanup:', error);
       }
     };
-  }, [clientId, handleGoogleResponse, isScriptLoaded]);
+  }, [clientId, handleGoogleResponse, isInitialized]);
 
   if (!clientId) {
-    console.warn('Google Client ID not defined. Check environment variables.');
-    return <p>Error: Google authentication is not configured properly.</p>;
+    console.warn('Google Client ID not defined');
+    return null;
   }
 
   return (
     <div className="w-full">
       {isLoading ? (
-        <Button type="button" variant="outline" className="w-full" isLoading>
-          Loading...
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full h-[40px] flex items-center justify-center"
+          disabled
+        >
+          <svg
+            className="animate-spin -ml-1 mr-3 h-5 w-5 text-blue-600"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="4"
+            />
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            />
+          </svg>
+          Loading Google Sign-In...
         </Button>
       ) : (
         <div 
-          ref={googleButtonRef} 
-          className="w-full flex justify-center items-center min-h-[40px]" 
+          ref={googleButtonRef}
+          className="w-full min-h-[40px] flex justify-center items-center"
           aria-label="Google Sign-In Button"
         />
       )}

@@ -31,6 +31,22 @@ class LoanOfficerProfileUpdateSerializer(serializers.ModelSerializer):
             'license_expiry', 'phone_number'
         )
 
+    def validate(self, data):
+        """Validate profile update data"""
+        instance = getattr(self, 'instance', None)
+        
+        # If this is an existing profile (not a new user setup)
+        if instance and instance.profile_completed:
+            restricted_fields = ['nmls_id', 'first_name', 'last_name']
+            invalid_fields = [field for field in restricted_fields if field in data]
+            
+            if invalid_fields:
+                raise serializers.ValidationError(
+                    f"Cannot update restricted fields: {', '.join(invalid_fields)}"
+                )
+        
+        return data
+
     def validate_nmls_id(self, value):
         """Validate NMLS ID"""
         if not value:
@@ -48,13 +64,11 @@ class LoanOfficerProfileUpdateSerializer(serializers.ModelSerializer):
         """Validate phone number"""
         if not value:
             raise serializers.ValidationError("Phone number is required")
-        # Add any phone number format validation if needed
+        # Add any additional phone number validation if needed
         return value
 
     def validate_years_of_experience(self, value):
         """Validate years of experience"""
-        if value is None:
-            raise serializers.ValidationError("Years of experience is required")
         if value < 0:
             raise serializers.ValidationError("Years of experience cannot be negative")
         return value

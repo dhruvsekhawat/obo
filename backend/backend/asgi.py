@@ -19,12 +19,13 @@ from channels.auth import AuthMiddlewareStack
 from channels.security.websocket import AllowedHostsOriginValidator
 from django.urls import path, re_path
 from notifications.consumers import NotificationConsumer
+from loans.consumers import BidConsumer
 
 django_asgi_app = get_asgi_application()
 
 websocket_urlpatterns = [
     re_path(r'^ws/notifications/$', NotificationConsumer.as_asgi()),
-    re_path(r'^api/ws/notifications/$', NotificationConsumer.as_asgi()),
+    re_path(r'^ws/bids/$', BidConsumer.as_asgi()),
 ]
 
 application = ProtocolTypeRouter({

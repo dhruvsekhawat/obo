@@ -9,6 +9,9 @@ from datetime import timedelta
 import logging
 import random
 from decimal import Decimal
+from django.urls import path
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 
 from .models import Loan, GuaranteedLeadAllocation, GuaranteedLeadAssignment
 from .serializers import (
@@ -100,7 +103,7 @@ class LoanViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def competitive_loans(self, request):
         """
-        Get all available competitive loans
+        Get all available competitive loans with filtering based on preferences
         """
         if not hasattr(request.user, 'loan_officer_profile'):
             return Response(
@@ -114,14 +117,92 @@ class LoanViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
 
+        # Start with base queryset
         loans = Loan.objects.filter(
             lead_type='COMPETITIVE',
             status='AVAILABLE',
             is_closed=False
         ).select_related('borrower', 'current_leader')
 
+        # Get query parameters
+        use_preferences = request.query_params.get('use_preferences', 'true').lower() == 'true'
+        sort_by = request.query_params.get('sort_by', 'created_at')
+        sort_order = request.query_params.get('sort_order', 'desc')
+
+        # Get loan officer preferences
+        try:
+            preferences = request.user.loan_officer_profile.preferences
+            if use_preferences and preferences:
+                # Apply loan type filters
+                loan_types = []
+                if preferences.conventional_enabled:
+                    loan_types.append('CONVENTIONAL')
+                if preferences.fha_enabled:
+                    loan_types.append('FHA')
+                if preferences.va_enabled:
+                    loan_types.append('VA')
+                if preferences.jumbo_enabled:
+                    loan_types.append('JUMBO')
+                if loan_types:
+                    loans = loans.filter(loan_type__in=loan_types)
+
+                # Apply region filters if not open to all regions
+                if not preferences.open_to_all_regions and preferences.regions:
+                    loans = loans.filter(location__in=preferences.regions)
+
+                # Apply loan amount range
+                loans = loans.filter(
+                    loan_amount__gte=preferences.min_loan_amount,
+                    loan_amount__lte=preferences.max_loan_amount
+                )
+
+                # Apply FICO score range
+                loans = loans.filter(
+                    fico_score__gte=preferences.min_fico_score,
+                    fico_score__lte=preferences.max_fico_score
+                )
+
+                # Apply APR threshold
+                loans = loans.filter(original_apr__lte=preferences.max_apr_threshold)
+        except Exception as e:
+            logger.error(f"Error applying preferences: {e}")
+
+        # Apply manual filters from query parameters
+        location = request.query_params.get('location')
+        min_fico = request.query_params.get('min_fico')
+        max_fico = request.query_params.get('max_fico')
+        min_amount = request.query_params.get('min_amount')
+        max_amount = request.query_params.get('max_amount')
+        max_apr = request.query_params.get('max_apr')
+        loan_type = request.query_params.get('loan_type')
+
+        if location:
+            loans = loans.filter(location=location)
+        if min_fico:
+            loans = loans.filter(fico_score__gte=min_fico)
+        if max_fico:
+            loans = loans.filter(fico_score__lte=max_fico)
+        if min_amount:
+            loans = loans.filter(loan_amount__gte=min_amount)
+        if max_amount:
+            loans = loans.filter(loan_amount__lte=max_amount)
+        if max_apr:
+            loans = loans.filter(original_apr__lte=max_apr)
+        if loan_type:
+            loans = loans.filter(loan_type=loan_type)
+
+        # Apply sorting
+        sort_field = sort_by
+        if sort_order == 'desc':
+            sort_field = f'-{sort_field}'
+        loans = loans.order_by(sort_field)
+
         serializer = self.get_serializer(loans, many=True)
-        return Response(serializer.data)
+        return Response({
+            'loans': serializer.data,
+            'total_count': loans.count(),
+            'filtered_by_preferences': use_preferences
+        })
 
     @action(detail=False, methods=['get'])
     def won_loans(self, request):
@@ -268,7 +349,28 @@ class LoanViewSet(viewsets.ModelViewSet):
 
             # Update current bidder's metrics
             loan_officer.update_performance_metrics()
-            
+
+            # Broadcast bid update to all connected WebSocket clients
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                'bids',
+                {
+                    'type': 'bid_update',
+                    'loan_id': loan.id,
+                    'new_lowest_apr': float(bid_apr),
+                    'current_bid_count': loan.current_bid_count,
+                    'current_leader': {
+                        'id': loan_officer.id,
+                        'user': {
+                            'id': loan_officer.user.id,
+                            'first_name': loan_officer.user.first_name,
+                            'last_name': loan_officer.user.last_name,
+                            'email': loan_officer.user.email,
+                        }
+                    }
+                }
+            )
+
             serializer = self.get_serializer(loan)
             return Response(serializer.data)
             
