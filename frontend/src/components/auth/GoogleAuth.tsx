@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useCallback, useState, useRef } from 'react';
+import { FC, useEffect, useCallback, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 import { Button } from '@/components/shared/Button';
@@ -32,7 +32,7 @@ declare global {
   }
 }
 
-export function GoogleAuth() {
+export const GoogleAuth: FC = () => {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -107,11 +107,9 @@ export function GoogleAuth() {
       }
     };
 
-    // Check if the script is already loaded
     if (window.google?.accounts?.id) {
       initializeGoogleSignIn();
     } else {
-      // Load the script if not already loaded
       const script = document.createElement('script');
       script.src = 'https://accounts.google.com/gsi/client';
       script.async = true;
@@ -180,4 +178,6 @@ export function GoogleAuth() {
       )}
     </div>
   );
-}
+};
+
+GoogleAuth.displayName = 'GoogleAuth';

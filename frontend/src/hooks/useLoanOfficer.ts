@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { authService } from '@/services/auth';
-import { debounce } from 'lodash';
+import debounce from 'lodash/debounce';
+import type { DebouncedFunc } from 'lodash';
 
 interface LoanOfficerProfile {
   id: number;

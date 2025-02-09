@@ -90,6 +90,7 @@ export interface GuaranteedLoansResponse {
 
 export interface WonLoan extends Loan {
   winning_bid: {
+    id: number;
     bid_apr: number;
     created_at: string;
   };

@@ -1,4 +1,4 @@
-import { InputHTMLAttributes, forwardRef } from 'react';
+import { InputHTMLAttributes, forwardRef, ForwardRefRenderFunction } from 'react';
 import { twMerge } from 'tailwind-merge';
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
@@ -6,7 +6,7 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   error?: string;
 }
 
-export const Input = forwardRef<HTMLInputElement, InputProps>(
+const InputBase: ForwardRefRenderFunction<HTMLInputElement, InputProps> = 
   ({ className, label, error, ...props }, ref) => {
     return (
       <div className="space-y-2">
@@ -33,5 +33,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         )}
       </div>
     );
-  }
-); 
+  };
+
+export const Input = forwardRef<HTMLInputElement, InputProps>(InputBase);
+
+Input.displayName = 'Input'; 

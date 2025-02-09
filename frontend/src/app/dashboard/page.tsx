@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import { FC, useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 import { authService } from '@/services/auth';
 import type { SVGProps } from 'react';
+import type { User } from '@/types/auth';
 import {
   ChartBarIcon,
   CheckCircleIcon,
@@ -16,6 +17,8 @@ import {
   UserIcon,
   Cog6ToothIcon,
   ArrowLeftOnRectangleIcon,
+  BanknotesIcon,
+  ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
 import dynamic from 'next/dynamic';
 
@@ -40,22 +43,24 @@ interface DashboardStats {
 interface StatItem {
   name: string;
   value: string | number;
-  icon: React.ComponentType<SVGProps<SVGSVGElement>>;
+  icon: FC<SVGProps<SVGSVGElement>>;
   color: string;
 }
 
-export default function DashboardPage() {
+const DashboardPage: FC = () => {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const user = authService.getUser();
+  const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    if (!user) {
+    const userData = authService.getUser();
+    if (!userData) {
       router.push('/login');
     } else {
+      setUser(userData);
       fetchDashboardStats();
     }
   }, [router]);
@@ -70,7 +75,7 @@ export default function DashboardPage() {
       
       if (!response.ok) throw new Error('Failed to fetch profile stats');
       const data = await response.json();
-      console.log('Dashboard stats response:', data); // Debug log
+      console.log('Dashboard stats response:', data);
 
       setDashboardStats({
         active_bids: data.active_bids_count || 0,
@@ -99,19 +104,19 @@ export default function DashboardPage() {
     {
       name: 'Active Bids',
       value: dashboardStats?.active_bids || 0,
-      icon: ChartBarIcon,
+      icon: ChartBarIcon as FC<SVGProps<SVGSVGElement>>,
       color: 'bg-blue-500',
     },
     {
       name: 'Won Loans',
       value: dashboardStats?.won_loans || 0,
-      icon: CheckCircleIcon,
+      icon: CheckCircleIcon as FC<SVGProps<SVGSVGElement>>,
       color: 'bg-green-500',
     },
     {
       name: 'Success Rate',
       value: `${(dashboardStats?.success_rate || 0).toFixed(1)}%`,
-      icon: TrophyIcon,
+      icon: TrophyIcon as FC<SVGProps<SVGSVGElement>>,
       color: 'bg-yellow-500',
     },
     {
@@ -123,7 +128,7 @@ export default function DashboardPage() {
             maximumFractionDigits: 0,
           }).format(dashboardStats.total_value)
         : '$0',
-      icon: CurrencyDollarIcon,
+      icon: CurrencyDollarIcon as FC<SVGProps<SVGSVGElement>>,
       color: 'bg-purple-500',
     },
   ];
@@ -145,7 +150,13 @@ export default function DashboardPage() {
     router.push('/login');
   };
 
-  if (isLoading || !user) return null;
+  if (isLoading || !user) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -166,7 +177,7 @@ export default function DashboardPage() {
                     <UserCircleIcon className="h-8 w-8 text-gray-400" />
                     <div className="flex items-center">
                       <span className="text-sm font-medium text-gray-700">
-                        {user?.first_name} {user?.last_name}
+                        {user.first_name} {user.last_name}
                       </span>
                       <ChevronDownIcon 
                         className={`ml-2 h-4 w-4 text-gray-500 transition-transform duration-200 ${
@@ -213,7 +224,7 @@ export default function DashboardPage() {
         {/* Welcome Section */}
         <div className="px-4 sm:px-0 mb-8">
           <h2 className="text-2xl font-bold text-gray-900">
-            Welcome back, {user?.first_name}
+            Welcome back, {user.first_name}
           </h2>
           <p className="mt-1 text-sm text-gray-500">
             Here's what's happening with your loans today.
@@ -230,10 +241,10 @@ export default function DashboardPage() {
               <div className="p-5">
                 <div className="flex items-center">
                   <div className={`flex-shrink-0 rounded-md p-3 ${stat.color}`}>
-                    {React.createElement(stat.icon, {
-                      className: "h-6 w-6 text-white",
-                      "aria-hidden": "true"
-                    })}
+                    <stat.icon
+                      className="h-6 w-6 text-white"
+                      aria-hidden="true"
+                    />
                   </div>
                   <div className="ml-5 w-0 flex-1">
                     <dl>
@@ -251,84 +262,119 @@ export default function DashboardPage() {
           ))}
         </div>
 
-        {/* Quick Actions */}
-        <div className="px-4 sm:px-0 mb-8">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">
-            Quick Actions
-          </h3>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <button
-              onClick={() => router.push('/guaranteed-loans')}
-              className="relative group bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200"
-            >
-              <h3 className="text-lg font-semibold text-gray-900 group-hover:text-blue-600">
-                View Guaranteed Loans
-              </h3>
-              <p className="mt-1 text-sm text-gray-500">
-                Browse loans that match your preferences
-              </p>
-              <ArrowRightIcon className="h-5 w-5 text-blue-500 absolute right-6 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-            </button>
-            <button
-              onClick={() => router.push('/competitive-loans')}
-              className="relative group bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200"
-            >
-              <h3 className="text-lg font-semibold text-gray-900 group-hover:text-blue-600">
-                Browse Competitive Loans
-              </h3>
-              <p className="mt-1 text-sm text-gray-500">
-                Explore and bid on available loan opportunities
-              </p>
-              <ArrowRightIcon className="h-5 w-5 text-blue-500 absolute right-6 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-            </button>
+        {/* Loan Type Navigation */}
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 mb-8 px-4 sm:px-0">
+          {/* Competitive Loans Box */}
+          <div 
+            onClick={() => router.push('/competitive-loans')}
+            className="bg-white overflow-hidden shadow rounded-lg cursor-pointer hover:shadow-md transition-shadow duration-200"
+          >
+            <div className="p-5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0 rounded-md p-3 bg-blue-500">
+                    <BanknotesIcon className="h-6 w-6 text-white" />
+                  </div>
+                  <div className="ml-5">
+                    <h3 className="text-lg font-medium text-gray-900">Competitive Loans</h3>
+                    <p className="text-sm text-gray-500">Bid on available loans and compete with other lenders</p>
+                  </div>
+                </div>
+                <ArrowRightIcon className="h-5 w-5 text-gray-400" />
+              </div>
+            </div>
+          </div>
+
+          {/* Guaranteed Loans Box */}
+          <div 
+            onClick={() => router.push('/guaranteed-loans')}
+            className="bg-white overflow-hidden shadow rounded-lg cursor-pointer hover:shadow-md transition-shadow duration-200"
+          >
+            <div className="p-5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0 rounded-md p-3 bg-green-500">
+                    <ShieldCheckIcon className="h-6 w-6 text-white" />
+                  </div>
+                  <div className="ml-5">
+                    <h3 className="text-lg font-medium text-gray-900">Guaranteed Loans</h3>
+                    <p className="text-sm text-gray-500">View and claim your guaranteed loan assignments</p>
+                  </div>
+                </div>
+                <ArrowRightIcon className="h-5 w-5 text-gray-400" />
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Recent Activity */}
-        <div className="px-4 sm:px-0">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">
-            Recent Activity
-          </h3>
-          <div className="bg-white shadow overflow-hidden sm:rounded-md">
-            <ul role="list" className="divide-y divide-gray-200">
-              {dashboardStats?.recent_activity?.length ? (
-                dashboardStats.recent_activity.map((activity) => (
-                  <li key={activity.id}>
-                    <div className="px-4 py-4 sm:px-6 hover:bg-gray-50">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <ChartBarIcon 
-                            className={`h-5 w-5 ${
-                              activity.status === 'ACCEPTED' ? 'text-green-500' :
-                              activity.status === 'OUTBID' ? 'text-red-500' :
-                              'text-blue-500'
-                            }`}
+        <div className="bg-white shadow rounded-lg px-4 sm:px-0 mb-8">
+          <div className="border-b border-gray-200">
+            <div className="px-6 py-5">
+              <h3 className="text-lg font-medium leading-6 text-gray-900">
+                Recent Activity
+              </h3>
+            </div>
+          </div>
+          <div className="px-6 py-5">
+            {dashboardStats?.recent_activity && dashboardStats.recent_activity.length > 0 ? (
+              <div className="flow-root">
+                <ul className="-mb-8">
+                  {dashboardStats.recent_activity.map((activity, activityIdx) => (
+                    <li key={activity.id}>
+                      <div className="relative pb-8">
+                        {activityIdx !== dashboardStats.recent_activity.length - 1 ? (
+                          <span
+                            className="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200"
                             aria-hidden="true"
                           />
-                          <p className="ml-2 text-sm font-medium text-gray-900">
-                            {activity.description}
-                          </p>
-                        </div>
-                        <div className="ml-2 flex-shrink-0 flex">
-                          <p className="text-sm text-gray-500">
-                            {activity.date}
-                          </p>
+                        ) : null}
+                        <div className="relative flex space-x-3">
+                          <div>
+                            <span className={`
+                              h-8 w-8 rounded-full flex items-center justify-center ring-8 ring-white
+                              ${activity.status === 'ACCEPTED' ? 'bg-green-500' :
+                                activity.status === 'OUTBID' ? 'bg-red-500' :
+                                'bg-blue-500'
+                              }
+                            `}>
+                              {activity.status === 'ACCEPTED' ? (
+                                <CheckCircleIcon className="h-5 w-5 text-white" aria-hidden="true" />
+                              ) : activity.status === 'OUTBID' ? (
+                                <ArrowRightIcon className="h-5 w-5 text-white" aria-hidden="true" />
+                              ) : (
+                                <ChartBarIcon className="h-5 w-5 text-white" aria-hidden="true" />
+                              )}
+                            </span>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div>
+                              <div className="text-sm text-gray-500">
+                                <time dateTime={activity.date}>{activity.date}</time>
+                              </div>
+                            </div>
+                            <div className="mt-1">
+                              <p className="text-sm text-gray-600">
+                                {activity.description}
+                              </p>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </li>
-                ))
-              ) : (
-                <li>
-                  <div className="px-4 py-4 sm:px-6 text-center text-gray-500">
-                    No recent activity
-                  </div>
-                </li>
-              )}
-            </ul>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">No recent activity to display.</p>
+            )}
           </div>
         </div>
       </main>
     </div>
   );
-}
+};
+
+DashboardPage.displayName = 'DashboardPage';
+
+export default DashboardPage;

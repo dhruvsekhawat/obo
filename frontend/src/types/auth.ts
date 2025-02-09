@@ -92,6 +92,9 @@ export interface RegisterCredentials {
 }
 
 export interface AuthResponse {
+  success: boolean;
+  access: string;
+  message: string;
   token: string;
   user: User;
 }

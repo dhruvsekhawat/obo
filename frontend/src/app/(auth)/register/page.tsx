@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { FC, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import Link from 'next/link';
@@ -8,7 +8,7 @@ import { toast } from 'react-hot-toast';
 import { Input } from '@/components/shared/Input';
 import { Button } from '@/components/shared/Button';
 import { authService } from '@/services/auth';
-import type { RegisterCredentials } from '@/types/auth';
+import type { RegisterCredentials, AuthResponse } from '@/types/auth';
 import { GoogleAuth } from '@/components/auth/GoogleAuth';
 
 type FormData = Omit<RegisterCredentials, 'role'> & { confirmPassword: string };
@@ -19,7 +19,7 @@ interface ValidationErrors {
   [key: string]: string | undefined;
 }
 
-export default function RegisterPage() {
+const RegisterPage: FC = () => {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [backendErrors, setBackendErrors] = useState<ValidationErrors>({});
@@ -29,16 +29,13 @@ export default function RegisterPage() {
   const handleBackendError = (error: any) => {
     const data = error.response?.data;
     if (data) {
-      // Handle specific validation errors
       if (typeof data === 'object') {
         const validationErrors: ValidationErrors = {};
         
-        // Process each error field
         Object.entries(data).forEach(([key, value]) => {
           const errorMessage = Array.isArray(value) ? value[0] : value;
           validationErrors[key] = errorMessage as string;
           
-          // Set error in react-hook-form
           setError(key as any, {
             type: 'backend',
             message: errorMessage as string
@@ -47,13 +44,11 @@ export default function RegisterPage() {
         
         setBackendErrors(validationErrors);
         
-        // Show the first error message in toast
         const firstError = Object.values(validationErrors)[0];
         if (firstError) {
           toast.error(firstError);
         }
       } else {
-        // Handle general error message
         toast.error(data.message || 'Registration failed');
       }
     } else {
@@ -76,14 +71,13 @@ export default function RegisterPage() {
       const response = await authService.register({
         ...data,
         role: 'LOAN_OFFICER'
-      });
+      }) as AuthResponse;
       
       if (response.success) {
         authService.setToken(response.access);
-        authService.setUser(JSON.stringify(response.user));
+        authService.setUser(response.user);
         toast.success('Registration successful!');
         
-        // Check if profile needs to be completed
         if (response.user.role === 'LOAN_OFFICER') {
           const { profile_completed } = response.user.loan_officer_profile || {};
           if (!profile_completed) {
@@ -146,8 +140,8 @@ export default function RegisterPage() {
             <Input
               label="NMLS ID"
               placeholder="12345678"
-              error={errors.loan_officer_profile?.nmls_id?.message || backendErrors['loan_officer_profile.nmls_id']}
-              {...register('loan_officer_profile.nmls_id', {
+              error={errors.nmls_id?.message || backendErrors['loan_officer_profile.nmls_id']}
+              {...register('nmls_id', {
                 required: 'Required',
                 pattern: {
                   value: /^\d{6,8}$/,
@@ -173,16 +167,16 @@ export default function RegisterPage() {
           <Input
             label="Company"
             placeholder="Your Brokerage Company"
-            error={errors.loan_officer_profile?.company_name?.message || backendErrors['loan_officer_profile.company_name']}
-            {...register('loan_officer_profile.company_name', { required: 'Required' })}
+            error={errors.company_name?.message || backendErrors['loan_officer_profile.company_name']}
+            {...register('company_name', { required: 'Required' })}
           />
 
           <Input
             label="Years of Experience"
             type="number"
             placeholder="5"
-            error={errors.loan_officer_profile?.years_of_experience?.message || backendErrors['loan_officer_profile.years_of_experience']}
-            {...register('loan_officer_profile.years_of_experience', {
+            error={errors.years_of_experience?.message || backendErrors['loan_officer_profile.years_of_experience']}
+            {...register('years_of_experience', {
               required: 'Required',
               min: { value: 0, message: 'Must be 0 or greater' },
               valueAsNumber: true
@@ -248,9 +242,9 @@ export default function RegisterPage() {
 
           <GoogleAuth />
 
-          <p className="mt-4 text-center text-sm text-gray-600">
+          <p className="text-center text-sm text-gray-600 mt-6">
             Already have an account?{' '}
-            <Link href="/login" className="font-medium text-blue-600 hover:text-blue-500">
+            <Link href="/login" className="text-blue-600 hover:text-blue-500">
               Sign in
             </Link>
           </p>
@@ -258,4 +252,8 @@ export default function RegisterPage() {
       </div>
     </div>
   );
-} 
+};
+
+RegisterPage.displayName = 'RegisterPage';
+
+export default RegisterPage; 

@@ -1,4 +1,4 @@
-import { ButtonHTMLAttributes, ReactNode } from 'react';
+import { ButtonHTMLAttributes, FC, ReactNode } from 'react';
 import { twMerge } from 'tailwind-merge';
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -8,7 +8,7 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode;
 }
 
-export function Button({
+export const Button: FC<ButtonProps> = ({
   variant = 'primary',
   size = 'md',
   isLoading = false,
@@ -16,7 +16,7 @@ export function Button({
   children,
   disabled,
   ...props
-}: ButtonProps): ReactNode {
+}) => {
   const baseStyles = 'inline-flex items-center justify-center rounded-md font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none';
   
   const variants = {
@@ -68,4 +68,6 @@ export function Button({
       {children}
     </button>
   );
-} 
+};
+
+Button.displayName = 'Button'; 

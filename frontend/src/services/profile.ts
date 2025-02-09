@@ -1,13 +1,13 @@
 import { api } from './api';
-import { UserProfile, LoanOfficerPreferences } from '@/types/auth';
+import { User, LoanOfficerPreferences } from '@/types/auth';
 
 export const profileService = {
-  async fetchUserProfile(): Promise<UserProfile> {
+  async fetchUserProfile(): Promise<User> {
     const response = await api.get('/auth/user/');
     return response.data;
   },
 
-  async updateProfile(formData: Partial<UserProfile>) {
+  async updateProfile(formData: Partial<User>) {
     const response = await api.patch('/auth/profile/', formData);
     return response.data;
   },

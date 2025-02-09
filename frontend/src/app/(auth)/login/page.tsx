@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { FC, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import Link from 'next/link';
@@ -9,9 +9,9 @@ import { Input } from '@/components/shared/Input';
 import { Button } from '@/components/shared/Button';
 import { GoogleAuth } from '@/components/auth/GoogleAuth';
 import { authService } from '@/services/auth';
-import type { LoginCredentials } from '@/types/auth';
+import type { LoginCredentials, AuthResponse } from '@/types/auth';
 
-export default function LoginPage(): JSX.Element {
+const LoginPage: FC = () => {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const { register, handleSubmit, formState: { errors } } = useForm<LoginCredentials>();
@@ -19,7 +19,7 @@ export default function LoginPage(): JSX.Element {
   const onSubmit = async (data: LoginCredentials) => {
     try {
       setIsLoading(true);
-      const response = await authService.login(data);
+      const response = await authService.login(data) as AuthResponse;
       console.log('Login Response:', response);
       
       if (response.success) {
@@ -60,20 +60,22 @@ export default function LoginPage(): JSX.Element {
         </div>
 
         <form className="mt-8 space-y-5" onSubmit={handleSubmit(onSubmit)}>
-          <Input
-            label="Email"
-            type="email"
-            placeholder="name@example.com"
-            autoComplete="email"
-            error={errors.email?.message}
-            {...register('email', {
-              required: 'Email is required',
-              pattern: {
-                value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                message: 'Invalid email address'
-              }
-            })}
-          />
+          <div>
+            <Input
+              label="Email"
+              type="email"
+              placeholder="name@example.com"
+              autoComplete="email"
+              error={errors.email?.message}
+              {...register('email', {
+                required: 'Email is required',
+                pattern: {
+                  value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                  message: 'Invalid email address'
+                }
+              })}
+            />
+          </div>
 
           <div className="space-y-1">
             <Input
@@ -125,4 +127,8 @@ export default function LoginPage(): JSX.Element {
       </div>
     </div>
   );
-} 
+};
+
+LoginPage.displayName = 'LoginPage';
+
+export default LoginPage; 

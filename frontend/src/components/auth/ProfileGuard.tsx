@@ -5,7 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { authService } from '@/services/auth';
 import { toast } from 'react-hot-toast';
 
-const ALLOWED_PATHS = ['/dashboard/profile', '/login', '/register'];
+const ALLOWED_PATHS = ['/', '/dashboard/profile', '/login', '/register', '/borrower'];
 
 export function ProfileGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();

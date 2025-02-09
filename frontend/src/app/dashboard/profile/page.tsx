@@ -24,7 +24,22 @@ import {
 } from '@heroicons/react/24/outline';
 import Slider from 'rc-slider';
 import 'rc-slider/assets/index.css';
-import Select from 'react-select';
+import Select, { StylesConfig } from 'react-select';
+
+interface StateOption {
+  value: string;
+  label: string;
+}
+
+interface SelectStyles {
+  control: (base: any, state: { isFocused: boolean }) => any;
+  multiValue: (base: any) => any;
+  multiValueLabel: (base: any) => any;
+  multiValueRemove: (base: any) => any;
+  menu: (base: any) => any;
+  menuList: (base: any) => any;
+  option: (base: any, state: { isSelected: boolean; isFocused: boolean }) => any;
+}
 
 interface LoanTypes {
   conventional: boolean;
@@ -471,31 +486,31 @@ export default function ProfilePage() {
                     value={US_STATES.filter(state => 
                       preferences.regions.includes(state.value)
                     )}
-                    onChange={(selected) => setPreferences({
+                    onChange={(selected: readonly StateOption[]) => setPreferences({
                       ...preferences,
                       regions: selected.map(option => option.value)
                     })}
                     className="basic-multi-select"
                     classNamePrefix="select"
                     styles={{
-                      control: (base) => ({
+                      control: (base: any, state: { isFocused: boolean }) => ({
                         ...base,
                         borderColor: '#E5E7EB',
                         '&:hover': {
                           borderColor: '#3B82F6'
                         }
                       }),
-                      multiValue: (base) => ({
+                      multiValue: (base: any) => ({
                         ...base,
                         backgroundColor: '#EFF6FF',
                         borderRadius: '0.375rem'
                       }),
-                      multiValueLabel: (base) => ({
+                      multiValueLabel: (base: any) => ({
                         ...base,
                         color: '#1D4ED8',
                         padding: '0.25rem'
                       }),
-                      multiValueRemove: (base) => ({
+                      multiValueRemove: (base: any) => ({
                         ...base,
                         color: '#1D4ED8',
                         ':hover': {
@@ -503,7 +518,7 @@ export default function ProfilePage() {
                           color: '#1E40AF'
                         }
                       }),
-                      menu: (base) => ({
+                      menu: (base: any) => ({
                         ...base,
                         zIndex: 999,
                         position: 'absolute',
@@ -514,12 +529,12 @@ export default function ProfilePage() {
                         boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
                         marginTop: '4px'
                       }),
-                      menuList: (base) => ({
+                      menuList: (base: any) => ({
                         ...base,
                         padding: '0.5rem',
                         maxHeight: '250px'
                       }),
-                      option: (base, state) => ({
+                      option: (base: any, state: { isSelected: boolean; isFocused: boolean }) => ({
                         ...base,
                         backgroundColor: state.isSelected ? '#EFF6FF' : state.isFocused ? '#F3F4F6' : 'white',
                         color: state.isSelected ? '#1D4ED8' : '#374151',
@@ -529,7 +544,7 @@ export default function ProfilePage() {
                           backgroundColor: '#DBEAFE'
                         }
                       })
-                    }}
+                    } as StylesConfig<StateOption, true>}
                   />
                 </div>
                 <p className="mt-2 text-sm text-gray-500">

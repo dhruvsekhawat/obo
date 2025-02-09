@@ -26,14 +26,15 @@ import {
   ChevronDownIcon,
   ArrowTrendingDownIcon,
 } from '@heroicons/react/24/outline';
-import Select from 'react-select';
+import Select, { Theme as SelectTheme, ActionMeta, SingleValue, MultiValue } from 'react-select';
 import { CompetitiveLoan } from '@/types/loans';
 import { useLoanOfficer } from '@/hooks/useLoanOfficer';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useBidUpdates } from '@/hooks/useBidUpdates';
+import type { LoanOfficerProfile } from '@/types/auth';
 
 // Define proper types for the theme
-type ThemeConfig = Theme & {
+type ThemeConfig = SelectTheme & {
   colors: {
     primary: string;
     primary25: string;
@@ -356,7 +357,9 @@ const LoadingSkeleton = () => (
 
 export default function CompetitiveLoans() {
   const router = useRouter();
-  const { loanOfficer } = useLoanOfficer();
+  const { profile } = useLoanOfficer();
+  const { notifications } = useNotifications();
+  const { isConnected } = useBidUpdates();
   const [loans, setLoans] = useState<CompetitiveLoan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [bidAmounts, setBidAmounts] = useState<BidAmounts>({});
@@ -500,25 +503,16 @@ export default function CompetitiveLoans() {
                     Loan Type
                   </label>
                   <Select
+                    value={LOAN_TYPES.find(option => option.value === filters.loan_type)}
+                    onChange={(selected: SingleValue<SelectOption>) => {
+                      setFilters(prev => ({
+                        ...prev,
+                        loan_type: selected?.value
+                      }));
+                    }}
                     options={LOAN_TYPES}
-                    isClearable
-                    placeholder="Select loan type"
-                    className="text-sm"
-                    classNamePrefix="select"
                     styles={selectStyles}
                     theme={selectTheme}
-                    instanceId="loan-type-select"
-                    value={LOAN_TYPES.find(type => type.value === filters.loan_type)}
-                    onChange={(selected) => setFilters(prev => ({
-                      ...prev,
-                      loan_type: selected?.value
-                    }))}
-                    aria-label="Loan type filter"
-                    aria-describedby="loan-type-description"
-                    isSearchable={false}
-                    components={{
-                      IndicatorSeparator: () => null
-                    }}
                   />
                 </div>
 
@@ -528,32 +522,32 @@ export default function CompetitiveLoans() {
                   </label>
                   <div className="flex space-x-2">
                     <Select
+                      value={SORT_OPTIONS.find(option => option.value === filters.sort_by)}
+                      onChange={(selected: SingleValue<SelectOption>, action: ActionMeta<SelectOption>) => {
+                        if (selected) {
+                          setFilters(prev => ({ ...prev, sort_by: selected.value }));
+                        }
+                      }}
                       options={SORT_OPTIONS}
-                      className="flex-1 text-sm"
-                      classNamePrefix="select"
                       styles={selectStyles}
                       theme={selectTheme}
+                      className="flex-1 text-sm"
+                      classNamePrefix="select"
                       instanceId="sort-by-select"
-                      value={SORT_OPTIONS.find(option => option.value === filters.sort_by)}
-                      onChange={(selected) => setFilters(prev => ({
-                        ...prev,
-                        sort_by: selected?.value || 'created_at'
-                      }))}
                       aria-label="Sort by"
                       aria-describedby="sort-by-description"
                       isSearchable={false}
-                      defaultValue={SORT_OPTIONS.find(option => option.value === 'created_at')}
                       components={{
                         IndicatorSeparator: () => null
                       }}
                     />
                     <Button
+                      size="default"
+                      variant="outline"
                       onClick={() => setFilters(prev => ({
                         ...prev,
                         sort_order: prev.sort_order === 'asc' ? 'desc' : 'asc'
                       }))}
-                      variant="outline"
-                      size="icon"
                       className="border-gray-200 hover:bg-gray-50"
                     >
                       {filters.sort_order === 'asc' ? (
@@ -697,7 +691,7 @@ export default function CompetitiveLoans() {
                 onBidAmountChange={(value) => handleBidAmountChange(loan.id, value)}
                 onBidSubmit={() => handleBidSubmit(loan.id)}
                 isSubmitting={submittingBids[loan.id] || false}
-                currentUser={loanOfficer}
+                currentUser={profile}
               />
             ))}
           </div>
