@@ -14,15 +14,9 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import timedelta
-import dj_database_url
-from django.core.exceptions import ImproperlyConfigured
 
 # Load environment variables from .env file
 load_dotenv()
-
-# Environment settings
-ENVIRONMENT = os.getenv('ENVIRONMENT', 'development')
-POSTGRES_LOCALLY = os.getenv('POSTGRES_LOCALLY', 'False') == 'True'
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -32,18 +26,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-if ENVIRONMENT == 'production':
-    SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
-    if not SECRET_KEY:
-        raise ImproperlyConfigured("DJANGO_SECRET_KEY must be set in production environment")
-else:
-    SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-2)u-jf%s0e8doprkd647(#ybzzd7vpmc*29t0dyj!jkp(rw&ru')
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = ENVIRONMENT == 'development'
+DEBUG = True
 
-# Host settings
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = []
 
 # Google OAuth2 settings
 GOOGLE_OAUTH2_KEY = os.getenv('GOOGLE_OAUTH2_KEY')
@@ -108,30 +96,15 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
-if ENVIRONMENT == 'production' or POSTGRES_LOCALLY:
-    DATABASES = {
-        'default': dj_database_url.config(
-            default=os.getenv('DATABASE_URL'),
-            conn_max_age=600,
-            conn_health_checks=True,
-            ssl_require=True
-        )
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.getenv('DB_NAME'),
+        'USER': os.getenv('DB_USER'),
+        'PASSWORD': os.getenv('DB_PASSWORD'),
+        'HOST': os.getenv('DB_HOST'),
+        'PORT': os.getenv('DB_PORT'),
     }
-else:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': os.getenv('DB_NAME'),
-            'USER': os.getenv('DB_USER'),
-            'PASSWORD': os.getenv('DB_PASSWORD'),
-            'HOST': os.getenv('DB_HOST'),
-            'PORT': os.getenv('DB_PORT'),
-        }
-    }
-
-# Add database options for all configurations
-DATABASES['default']['OPTIONS'] = {
-    'sslmode': 'require' if ENVIRONMENT == 'production' else 'disable'
 }
 
 
@@ -192,13 +165,15 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# CORS settings
-CORS_ALLOW_ALL_ORIGINS = ENVIRONMENT == 'development'
+CORS_ALLOW_ALL_ORIGINS = True  # Only for development
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:3000').split(',')
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^http://localhost:3000$",
-] if ENVIRONMENT == 'development' else []
+]
 CORS_ALLOW_METHODS = [
     'DELETE',
     'GET',
@@ -230,6 +205,15 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 10,
 }
 
+SIMPLE_JWT = {
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'UPDATE_LAST_LOGIN': True,
+}
+
 # Enhanced Logging Configuration
 LOGGING = {
     'version': 1,
@@ -247,89 +231,59 @@ LOGGING = {
     },
     'handlers': {
         'console': {
-            'level': 'DEBUG' if ENVIRONMENT == 'development' else 'WARNING',
+            'level': 'DEBUG',
             'class': 'logging.StreamHandler',
+            'filters': ['sanitize_sensitive_data'],
+            'formatter': 'verbose',
+        },
+        'file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'logs', 'django.log'),
             'filters': ['sanitize_sensitive_data'],
             'formatter': 'verbose',
         },
     },
     'loggers': {
         'django': {
-            'handlers': ['console'],
-            'level': 'DEBUG' if ENVIRONMENT == 'development' else 'WARNING',
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
             'propagate': False,
         },
         'authentication': {
-            'handlers': ['console'],
+            'handlers': ['console', 'file'],
             'level': 'DEBUG',
             'propagate': False,
         },
         'loans': {
-            'handlers': ['console'],
+            'handlers': ['console', 'file'],
             'level': 'DEBUG',
             'propagate': False,
         },
         'bidding': {
-            'handlers': ['console'],
+            'handlers': ['console', 'file'],
             'level': 'DEBUG',
             'propagate': False,
         },
         'transactions': {
-            'handlers': ['console'],
+            'handlers': ['console', 'file'],
             'level': 'DEBUG',
             'propagate': False,
         },
     },
     'root': {
-        'handlers': ['console'],
-        'level': 'DEBUG' if ENVIRONMENT == 'development' else 'WARNING',
+        'handlers': ['console', 'file'],
+        'level': 'INFO',
     },
 }
 
-# Production security settings
-if ENVIRONMENT == 'production':
-    SECURE_SSL_REDIRECT = True
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
-    SECURE_BROWSER_XSS_FILTER = True
-    SECURE_CONTENT_TYPE_NOSNIFF = True
-    SECURE_HSTS_SECONDS = 31536000  # 1 year
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-    SECURE_HSTS_PRELOAD = True
-    X_FRAME_OPTIONS = 'DENY'
-    
-    # JWT settings for production
-    SIMPLE_JWT = {
-        'AUTH_HEADER_TYPES': ('Bearer',),
-        'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),  # Shorter in production
-        'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
-        'ROTATE_REFRESH_TOKENS': True,
-        'BLACKLIST_AFTER_ROTATION': True,
-        'UPDATE_LAST_LOGIN': True,
-        'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
-    }
-else:
-    # Development specific settings
-    SIMPLE_JWT = {
-        'AUTH_HEADER_TYPES': ('Bearer',),
-        'ACCESS_TOKEN_LIFETIME': timedelta(days=1),  # Longer for development
-        'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
-        'ROTATE_REFRESH_TOKENS': True,
-        'BLACKLIST_AFTER_ROTATION': True,
-        'UPDATE_LAST_LOGIN': True,
-    }
-
 # Channels configuration
 ASGI_APPLICATION = 'backend.asgi.application'
-
-# Redis Configuration
-REDIS_URL = os.getenv('REDIS_URL', 'redis://127.0.0.1:6379')
-
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            "hosts": [REDIS_URL],
+            "hosts": [('127.0.0.1', 6379)],
         },
     },
 }
