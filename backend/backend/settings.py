@@ -57,6 +57,7 @@ INSTALLED_APPS = [
     'bidding',
     'transactions',
     'notifications',
+    'document_processing',
 ]
 
 AUTH_USER_MODEL = 'authentication.CustomUser'
@@ -158,19 +159,31 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+MEDIA_ROOT = os.getenv('MEDIA_ROOT', os.path.join(BASE_DIR, 'media'))
+STATIC_ROOT = os.getenv('STATIC_ROOT', os.path.join(BASE_DIR, 'static'))
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-CORS_ALLOW_ALL_ORIGINS = True  # Only for development
+# CORS settings
+if DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = True  # Only for development
+else:
+    CORS_ALLOW_ALL_ORIGINS = False  # More secure for production
+
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
+
+# Add production domains if not in DEBUG mode
+if not DEBUG and os.getenv('CORS_ALLOWED_ORIGINS'):
+    production_origins = os.getenv('CORS_ALLOWED_ORIGINS').split(',')
+    CORS_ALLOWED_ORIGINS.extend(production_origins)
+
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^http://localhost:3000$",
 ]
@@ -239,7 +252,7 @@ LOGGING = {
         'file': {
             'level': 'INFO',
             'class': 'logging.FileHandler',
-            'filename': os.path.join(BASE_DIR, 'logs', 'django.log'),
+            'filename': os.path.join(os.getenv('LOGS_ROOT', os.path.join(BASE_DIR, 'logs')), 'django.log'),
             'filters': ['sanitize_sensitive_data'],
             'formatter': 'verbose',
         },
@@ -283,7 +296,7 @@ CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            "hosts": [('127.0.0.1', 6379)],
+            "hosts": [(os.getenv('REDIS_HOST', '127.0.0.1'), int(os.getenv('REDIS_PORT', 6379)))],
         },
     },
 }

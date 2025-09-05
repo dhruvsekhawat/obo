@@ -27,6 +27,14 @@ class Borrower(models.Model):
     employment_status = models.CharField(max_length=50, blank=True)
     property_type = models.CharField(max_length=50, blank=True)
     property_use = models.CharField(max_length=50, blank=True)
+    
+    # Notification preferences
+    notify_by_email = models.BooleanField(default=True)
+    notify_by_sms = models.BooleanField(default=True)
+    # Timestamps for when last notified
+    last_notified_email = models.DateTimeField(null=True, blank=True)
+    last_notified_sms = models.DateTimeField(null=True, blank=True)
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
