@@ -1,312 +1,232 @@
 # Beat My Rate - Loan Officer Platform
 
-A modern platform for loan officers to compete for and manage loan opportunities. The platform features a robust Django backend with a modern Next.js frontend.
+A competitive loan marketplace platform that connects borrowers with loan officers through real-time bidding. Loan officers compete to offer the best mortgage rates while borrowers get access to competitive pricing.
 
-## Current Project Status
+## Problem Statement
 
-- **Backend**: Fully implemented with Django REST Framework, including authentication, loan management, bidding system, and notifications
-- **Frontend**: Recently rebuilt with Next.js 14, TypeScript, and Tailwind CSS
-  - Currently implemented features:
-    - User authentication (Email/Password and Google Sign-in)
-    - Dashboard with statistics
-    - Competitive loans browsing and bidding
-    - Profile management
-    - Real-time notifications via WebSocket
-    - Loan officer preferences
+Traditional mortgage lending is inefficient. Borrowers struggle to find competitive rates, while loan officers waste time on unqualified leads. The market lacks transparency and real-time competition.
 
-## Tech Stack
+## Solution
 
-### Backend
-- Django 4.2.7
-- Django REST Framework
-- PostgreSQL
-- JWT Authentication
-- Django Channels (WebSocket)
-- Redis (for WebSocket channel layer)
-- Google OAuth2 integration
-- Daphne (ASGI server)
+Beat My Rate creates a reverse auction marketplace where:
+- Borrowers upload loan documents and requirements
+- Loan officers bid competitively with lower APRs
+- Real-time notifications keep all parties informed
+- AI processes documents to extract loan data automatically
+
+## Architecture
+
+### Backend (Django 5.1.4)
+- **Framework**: Django REST Framework with ASGI support
+- **Database**: PostgreSQL with comprehensive relational models
+- **Authentication**: JWT tokens with Google OAuth2 integration
+- **Real-time**: Django Channels with Redis for WebSocket support
+- **AI Processing**: Google Gemini for document extraction
+- **Server**: Daphne ASGI server for WebSocket + HTTP
+
+### Frontend (Next.js 15.0.4)
+- **Framework**: Next.js with App Router and TypeScript
+- **Styling**: Tailwind CSS with responsive design
+- **State Management**: React Query for server state
+- **Forms**: React Hook Form with validation
+- **Real-time**: Native WebSocket API integration
+
+### Database Design
+
+#### Core Models
+- **CustomUser**: Email-based authentication with role-based access
+- **LoanOfficerProfile**: Comprehensive profiles with NMLS verification
+- **Borrower**: Personal and financial information
+- **Loan**: Core loan details with competitive/guaranteed lead types
+- **Bid**: Real-time competitive bidding system
+- **Notification**: WebSocket-based notification delivery
+- **UploadedDocument**: AI-powered document processing
+
+#### Key Relationships
+- One-to-many: Borrower → Loans
+- Many-to-many: LoanOfficer → Bids → Loans
+- One-to-one: LoanOfficerProfile → Preferences
+- Generic Foreign Key: Notifications → Any model
+
+### Real-time System
+
+#### WebSocket Architecture
+- **NotificationConsumer**: Handles real-time notifications
+- **BidConsumer**: Manages live bid updates
+- **Redis Channel Layer**: Scalable message distribution
+- **JWT Authentication**: Secure WebSocket connections
+
+#### Message Types
+- Bid updates with APR changes
+- Outbid notifications
+- New loan availability
+- Loan status changes
+
+### AI Document Processing
+
+#### Google Gemini Integration
+- **Model**: Gemini 1.5 Flash for fast processing
+- **Input**: PDF loan estimates
+- **Output**: Structured JSON with loan data
+- **Fallback**: Placeholder data when AI fails
+- **Confidence Scoring**: Quality assessment of extractions
+
+#### Extracted Data
+- Borrower information
+- Loan amount and APR
+- Interest rates and terms
+- Monthly payments
+- Closing costs
+
+### Authentication System
+
+#### JWT Implementation
+- Access tokens (1 hour lifetime)
+- Refresh tokens (7 days lifetime)
+- Token rotation on refresh
+- Blacklist for security
+
+#### Google OAuth2
+- Seamless social login
+- Profile data synchronization
+- Role-based access control
+
+### API Design
+
+#### RESTful Endpoints
+- `/api/auth/` - Authentication and user management
+- `/api/loans/` - Loan CRUD operations
+- `/api/bidding/` - Bid placement and tracking
+- `/api/notifications/` - Notification management
+- `/api/document_processing/` - Document upload and processing
+
+#### Response Format
+- Consistent JSON responses
+- Pagination for list endpoints
+- Error handling with status codes
+- CORS configuration for frontend
+
+### Security
+
+#### Data Protection
+- Password hashing with Argon2
+- SQL injection prevention via Django ORM
+- XSS protection with CSRF tokens
+- Input validation and sanitization
+
+#### Access Control
+- Role-based permissions
+- JWT token validation
+- WebSocket authentication
+- CORS policy enforcement
+
+## Technical Implementation
+
+### Database Migrations
+- Version-controlled schema changes
+- Data migration support
+- Rollback capabilities
+- Production-safe deployments
+
+### Environment Configuration
+- Environment variable management
+- Development/production settings
+- Secret key protection
+- Database connection pooling
+
+### Logging and Monitoring
+- Structured logging with Django
+- Error tracking and reporting
+- Performance monitoring
+- Debug information capture
+
+### Testing Strategy
+- Unit tests for models and views
+- Integration tests for API endpoints
+- WebSocket connection testing
+- AI processing validation
+
+## Performance Optimizations
+
+### Database
+- Indexed queries for fast lookups
+- Select related for efficient joins
+- Pagination for large datasets
+- Query optimization
 
 ### Frontend
-- Next.js 14 with App Router
-- TypeScript
-- Tailwind CSS
-- React Query
-- React Hook Form
-- Heroicons
-- React Hot Toast
-- Native WebSocket API
+- Code splitting with Next.js
+- Image optimization
+- Caching strategies
+- Bundle size optimization
 
-## Database Structure
+### Real-time
+- Message throttling
+- Connection pooling
+- Efficient WebSocket management
+- Redis optimization
 
-### Core Models
+## Deployment
 
-1. **User & Authentication**
-   - Custom User model with email as primary identifier
-   - LoanOfficerProfile with preferences and statistics
-   - JWT token-based authentication
-
-2. **Loan Management**
-   - Borrower: Personal and financial information
-   - Loan: Core loan details and status
-   - Types: Conventional, FHA, VA, Jumbo
-   - Categories: Competitive and Guaranteed leads
-
-3. **Bidding System**
-   - Bid tracking with APR and status
-   - Automatic outbid notifications
-   - Bid history and analytics
-
-4. **Notifications**
-   - Real-time notification delivery
-   - Types: Outbid, Bid Won, New Loan, etc.
-   - WebSocket-based instant updates
-
-## Setup Guide
-
-### Prerequisites
+### Requirements
 - Python 3.11+
 - Node.js 18+
 - PostgreSQL 14+
 - Redis 6+
-- Git
 
-### Database Setup
-
-1. Install PostgreSQL:
-\`\`\`bash
-# macOS (using Homebrew)
-brew install postgresql@14
-brew services start postgresql@14
-
-# Ubuntu/Debian
-sudo apt install postgresql-14
-sudo systemctl start postgresql
-\`\`\`
-
-2. Create Database:
-\`\`\`bash
-# Connect to PostgreSQL
-psql postgres
-
-# Create database and user
-CREATE DATABASE beatmyrate;
-CREATE USER bmruser WITH PASSWORD 'your_password';
-ALTER ROLE bmruser SET client_encoding TO 'utf8';
-ALTER ROLE bmruser SET default_transaction_isolation TO 'read committed';
-ALTER ROLE bmruser SET timezone TO 'UTC';
-GRANT ALL PRIVILEGES ON DATABASE beatmyrate TO bmruser;
-\`\`\`
-
-### Redis Setup
-
-1. Install Redis:
-\`\`\`bash
-# macOS
-brew install redis
-brew services start redis
-
-# Ubuntu/Debian
-sudo apt install redis-server
-sudo systemctl start redis-server
-\`\`\`
-
-### Backend Setup
-
-1. Clone the repository:
-\`\`\`bash
-git clone https://github.com/BMR-stealth/loan-bidding-platform.git
-cd loan-bidding-platform
-\`\`\`
-
-2. Create and activate virtual environment:
-\`\`\`bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\\Scripts\\activate
-\`\`\`
-
-3. Install backend dependencies:
-\`\`\`bash
+### Environment Setup
+```bash
+# Backend
 cd backend
+python -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
-\`\`\`
-
-4. Set up environment variables:
-Create a \`.env\` file in the backend directory with:
-\`\`\`
-DEBUG=True
-SECRET_KEY=your_secret_key
-DATABASE_URL=postgres://bmruser:your_password@localhost:5432/beatmyrate
-GOOGLE_OAUTH2_CLIENT_ID=your_google_client_id
-GOOGLE_OAUTH2_CLIENT_SECRET=your_google_client_secret
-REDIS_URL=redis://localhost:6379/0
-ALLOWED_HOSTS=localhost,127.0.0.1
-CORS_ALLOWED_ORIGINS=http://localhost:3000
-\`\`\`
-
-5. Run migrations:
-\`\`\`bash
 python manage.py migrate
-\`\`\`
-
-6. Create test data:
-\`\`\`bash
-# Create a test loan officer account
-python manage.py create_test_loan_officer
-
-# Create sample loans (default: 10 loans)
-python manage.py create_test_loans --count 20  # Optional: specify count
-
-# The test data includes:
-# - Borrowers with realistic information
-# - Mix of competitive and guaranteed loans
-# - Various loan types (Conventional, FHA, VA, Jumbo)
-# - Realistic loan amounts and APRs
-\`\`\`
-
-7. Start the backend servers:
-\`\`\`bash
-# Start Daphne (WebSocket + HTTP)
-./run_daphne.sh
-
-# Alternative: Run Django development server (HTTP only)
 python manage.py runserver 8001
-\`\`\`
 
-### Frontend Setup
-
-1. Install frontend dependencies:
-\`\`\`bash
+# Frontend
 cd frontend
 npm install
-\`\`\`
-
-2. Set up environment variables:
-Create a \`.env.local\` file in the frontend directory with:
-\`\`\`
-NEXT_PUBLIC_API_URL=http://localhost:8001/api
-NEXT_PUBLIC_WS_URL=ws://localhost:8001
-NEXT_PUBLIC_GOOGLE_CLIENT_ID=your_google_client_id
-\`\`\`
-
-3. Run the development server:
-\`\`\`bash
 npm run dev
-\`\`\`
+```
 
-Access the application at http://localhost:3000
+### Production Considerations
+- Daphne ASGI server for WebSocket support
+- Static file serving with WhiteNoise
+- Database connection pooling
+- Redis clustering for scalability
+- Load balancing for high availability
 
-## Project Structure
+## API Documentation
 
-### Backend Structure
-- \`authentication/\`: User authentication and profiles
-  - Custom user model
-  - JWT authentication
-  - Google OAuth integration
-  - Loan officer profiles and preferences
-- \`loans/\`: Loan management and routing
-  - Loan and borrower models
-  - Loan search and filtering
-  - Lead management
-- \`bidding/\`: Bidding system logic
-  - Bid placement and tracking
-  - Competitive bidding rules
-  - Bid history
-- \`notifications/\`: Real-time notification system
-  - WebSocket consumers
-  - Notification models and types
-  - Real-time delivery
-- \`transactions/\`: Credit system transactions
-  - Credit tracking
-  - Transaction history
-- \`api/\`: API configurations and base classes
-- \`core/\`: Core settings and configurations
+### Authentication Endpoints
+- `POST /api/auth/register/` - User registration
+- `POST /api/auth/login/` - Email/password login
+- `POST /api/auth/google/` - Google OAuth2
+- `GET /api/auth/user/` - Current user details
 
-### Frontend Structure
-- \`src/app/\`: Next.js pages and routing
-  - \`(auth)/\`: Authentication pages
-  - \`dashboard/\`: Dashboard and profile pages
-  - \`competitive-loans/\`: Loan bidding pages
-  - \`guaranteed-loans/\`: Guaranteed leads pages
-- \`src/components/\`: Reusable React components
-  - \`notifications/\`: Real-time notification components
-  - \`auth/\`: Authentication components
-  - \`shared/\`: Common UI components
-- \`src/services/\`: API service integrations
-  - WebSocket service
-  - Authentication service
-  - Loan and bidding services
-- \`src/types/\`: TypeScript type definitions
-- \`src/utils/\`: Utility functions
-
-## API Endpoints
-
-### Authentication
-- \`POST /api/auth/register/\`: User registration
-- \`POST /api/auth/login/\`: Email/password login
-- \`POST /api/auth/google/\`: Google authentication
-- \`GET /api/auth/user/\`: Get current user details
-
-### Loans
-- \`GET /api/loans/\`: List available loans
-- \`GET /api/loans/competitive/\`: List competitive loans
-- \`GET /api/loans/guaranteed/\`: List guaranteed loans
-- \`POST /api/loans/{id}/bid/\`: Submit a bid
-- \`GET /api/loans/dashboard-stats/\`: Get dashboard statistics
-
-### Profile
-- \`GET /api/auth/loan_officer/profile/\`: Get loan officer profile
-- \`PUT /api/auth/loan_officer/preferences/\`: Update preferences
+### Loan Management
+- `GET /api/loans/` - List available loans
+- `GET /api/loans/competitive/` - Competitive loans
+- `GET /api/loans/guaranteed/` - Guaranteed leads
+- `POST /api/loans/{id}/bid/` - Submit bid
 
 ### WebSocket Endpoints
-- \`ws://localhost:8001/ws/notifications/\`: Real-time notifications
-  - Authentication required via JWT
-  - Supports bidding notifications
-  - Supports loan status updates
-
-## Common Issues & Solutions
-
-### Backend Issues
-- Database connection errors:
-  - Check PostgreSQL service is running
-  - Verify database credentials in \`.env\`
-  - Ensure database exists
-- Redis connection errors:
-  - Verify Redis is running (\`redis-cli ping\`)
-  - Check Redis connection URL
-- WebSocket connection issues:
-  - Ensure Daphne is running
-  - Check WebSocket URL in frontend
-  - Verify Redis channel layer
-
-### Frontend Issues
-- TypeScript errors with components:
-  - Ensure proper type definitions for props
-  - Check component return types
-- API connection issues:
-  - Verify backend is running on port 8001
-  - Check CORS settings in backend
-  - Verify API URL in \`.env.local\`
-- WebSocket connection issues:
-  - Check WebSocket URL configuration
-  - Verify authentication token
-  - Check browser console for connection errors
+- `ws://localhost:8001/ws/notifications/` - Real-time notifications
+- `ws://localhost:8001/ws/bids/` - Live bid updates
 
 ## Development Workflow
-1. Start PostgreSQL and Redis services
-2. Start the backend server (Daphne)
-3. Start the frontend development server
-4. Create test data if needed
-5. Access the application at http://localhost:3000
 
-## Contributing
-1. Fork the repository
-2. Create your feature branch (\`git checkout -b feature/YourFeature\`)
-3. Commit your changes (\`git commit -m 'Add YourFeature'\`)
-4. Push to the branch (\`git push origin feature/YourFeature\`)
-5. Open a Pull Request
+1. Feature branch creation
+2. Local development and testing
+3. Code review process
+4. Automated testing
+5. Production deployment
 
-## License
-This project is licensed under the MIT License.
+## Future Enhancements
 
-## Support
-For support, please open an issue on GitHub. 
+- Machine learning for loan matching
+- Advanced analytics dashboard
+- Mobile application
+- Third-party integrations
+- Automated underwriting
