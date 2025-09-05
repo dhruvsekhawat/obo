@@ -42,6 +42,9 @@ yarn-error.log*
 
 # OS
 .DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
 *.pem
 
 # Testing
@@ -55,4 +58,19 @@ build/
 *.egg-info/ 
 
 # Redis
-dump.rdb 
+dump.rdb
+*.rdb
+
+# Nested git repositories
+frontend/.git/
+backend/.git/
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*~.nib 
